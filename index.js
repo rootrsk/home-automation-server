@@ -25,7 +25,7 @@ app.use(cookieParser())
 app.use(bodyParser.urlencoded({
     extended: true
 }))
-
+let liveSocket = null;
 app.use((req,res,next)=>{
     res.setHeader('Access-Control-Allow-Origin','*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -60,6 +60,20 @@ app.get('/status',(req,res)=>{
         device: req.useragent.source
     })
 })
+app.get('/voice',(req,res)=>{
+    try {
+        console.log(req.query)
+        console.log(req.body)
+        res.json({
+            status:200
+        })
+    } catch (error) {
+        res.json({
+            status:404
+        })
+    }
+})
+
 
 http.listen(PORT,()=>{
     console.log(`Server started at port ${PORT}`)
@@ -67,67 +81,128 @@ http.listen(PORT,()=>{
 
 const switchStatus = [false,false,false,false,false,false,false,false]
 const arduinoStatus = {status:false}
+app.post('/voice', (req, res) => {
+    console.log(req.body,req.query)
+    let switch_no = null
+    const status = req.body.action === 'off'? false : true
+    const username = 'Google Assistant'
+    const nightLight = ['nightlight', 'night light', 'the night light','strip light','the strip light']
+    const tubeLight = ['tubelight', 'tube light', 'light', 'the light','the tube light']
+    const cellingFan = ['cellingfan', 'celling fan', 'fan']
+    const laptop = ['laptop', 'laptopcharger', 'laptop charger', 'charger']
+    const desktop = ['desktop', 'pc', 'desktop charger', 'desktopcharger', 'monitor']
+    console.log(tubeLight.includes('light'))
+    console.log(req.query.cmd.toLowerCase())
+    if (nightLight.includes(req.query.cmd.toLowerCase().trim())) {
+        switch_no = 1
+    }
+    if (tubeLight.includes(req.query.cmd.toLowerCase().trim())) {
+        console.log('light command')
+        switch_no = 7
+    }
+    if (cellingFan.includes(req.query.cmd.toLowerCase().trim())) {
+        switch_no = 8
+    }
+    if (laptop.includes(req.query.cmd.toLowerCase().trim())) {
+        switch_no = 5
+    }
+    if (desktop.includes(req.query.cmd.toLowerCase())) {
+        switch_no = 6
+    }
+    if(!switch_no){
+        return res.json({
+            status: 'failed',
+            error:'invalid command'
+        })
+    }
+    try {
+        if(process.env.VOICE_KEY!== req.body.key){
+            console.log('invalied key')
+        }
+        console.log(req.query)
+        if (liveSocket) {
+            console.log('liveSocket')
+            switchStatus[switch_no-1] = status
+            liveSocket.emit('switch-triggered', ({switch_no,status,username}))
+        }
+        res.json({
+            status: success,
+        })
+    } catch (error) {
+        console.log(error)
+        res.json({
+            status: 'failed',
+            error: error.message
+        })
+    }
+})
 
 io.on('connection', async(socket) => {
+    liveSocket = socket
+    if(!liveSocket){
+        return
+    }
     console.log("New Connection")
-    socket.emit('message',{message:'Welcome'})
-    socket.on('join',async({username,password,room})=>{
-        
+    liveSocket.emit('message',{message:'Welcome'})
+    liveSocket.on('join',async({username,password,room})=>{
         try {
             const user = await User.findByCredentials({email:username,username,password})
             if(!user) throw new Error('User not found.')
-            const {error} = addUser({username: user.username,room,id:socket.id})
+            const {error} = addUser({username: user.username,room,id:liveSocket.id})
             if(error) throw new Error(error)
-            socket.emit('login',{error:'',status: 200,user})
-            socket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
+            liveSocket.emit('login',{error:'',status: 200,user})
+            liveSocket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
             
-            socket.join(room)
-            socket.emit('arduino-connection-status', {status: arduinoStatus.status})
-            socket.emit('arduino-data', switchStatus)
-            socket.emit('req-arduino-status','requested')
+            liveSocket.join(room)
+            liveSocket.emit('arduino-connection-status', {status: arduinoStatus.status})
+            liveSocket.emit('arduino-data', switchStatus)
+            liveSocket.emit('req-arduino-status','requested')
             if(user.username==='arduino'){
                 console.log('arduion connected')
                 arduinoStatus.status = true
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:true})
+                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:true})
                 console.log(getAllUsers())
             }
 
         } catch (error) {
             console.log(error)
-            return socket.emit('login',{error:error.message,status:400})
+            return liveSocket.emit('login',{error:error.message,status:400})
         }
     })
-    socket.on('switch-trigger',({switch_no,status,username})=>{
+
+    liveSocket.on('switch-trigger',({switch_no,status,username})=>{
+        console.log('switch-trigger')
+        console.log({switch_no,status,username})
         switchStatus[switch_no-1] = status
-        socket.broadcast.to('123').emit('switch-triggered', ({switch_no,status,username}))
-    })
-
-    socket.on('arduino-status',(status)=>{
-        Object.entries(status).forEach(([key, value], index) => switchStatus[index] = Boolean(parseInt(value)));
-        socket.broadcast.to('123').emit('arduino-data', switchStatus)
-    })
-
-    socket.on('sensor-send',({temp,humidity,co,ch,time})=>{
-        if(!time) time= new Date();
-        socket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
+        liveSocket.broadcast.to('123').emit('switch-triggered', ({switch_no,status,username}))
     })
     
-    socket.on('disconnecting', async(reason) => {
+    liveSocket.on('arduino-status',(status)=>{
+        Object.entries(status).forEach(([key, value], index) => switchStatus[index] = Boolean(parseInt(value)));
+        liveSocket.broadcast.to('123').emit('arduino-data', switchStatus)
+    })
+
+    liveSocket.on('sensor-send',({temp,humidity,co,ch,time})=>{
+        if(!time) time= new Date();
+        liveSocket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
+    })
+    
+    liveSocket.on('disconnecting', async(reason) => {
         console.log("A user is disconnecting.")
-        const user = await removeUser({id:socket.id})
+        const user = await removeUser({id:liveSocket.id})
         if(user){
             if (user.username === 'arduino') {
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:false})
                 arduinoStatus.status  = false
             }
         }
     })
-    socket.on('disconnect', async(reason) => {
+    liveSocket.on('disconnect', async(reason) => {
         console.log("A user is disconnected.")
-        const user = await removeUser({id:socket.id})
+        const user = await removeUser({id:liveSocket.id})
         if(user){
             if (user.username === 'arduino') {
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:false})
                 arduinoStatus.status  = false
             }
         }
