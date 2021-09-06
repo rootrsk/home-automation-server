@@ -126,7 +126,7 @@ app.post('/voice', (req, res) => {
             liveSocket.emit('switch-triggered', ({switch_no,status,username}))
         }
         res.json({
-            status: success,
+            status: 'success',
         })
     } catch (error) {
         console.log(error)
