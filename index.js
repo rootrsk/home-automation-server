@@ -116,7 +116,7 @@ app.post('/voice', (req, res) => {
         if (liveSocket) {
             console.log('liveSocket')
             switchStatus[switch_no-1] = status
-            liveSocket.emit('switch-triggered', ({switch_no,status,username}))
+            io.in('123').emit('switch-triggered', ({switch_no,status,username}))
         }
         res.json({
             status: 'success',
@@ -131,74 +131,75 @@ app.post('/voice', (req, res) => {
 })
 
 io.on('connection', async(socket) => {
-    liveSocket = socket
-    if(!liveSocket){
-        return
-    }
+    // liveSocket = socket
+    // if(!liveSocket){
+    //     return
+    // }
     io.on('hh',(x)=>{
         console.log(x)
     })
     console.log("New Connection")
-    liveSocket.emit('message',{message:'Welcome'})
-    liveSocket.on('join',async({username,password,room})=>{
+    socket.emit('message',{message:'Welcome'})
+    socket.on('join',async({username,password,room})=>{
         try {
             const user = await User.findByCredentials({email:username,username,password})
             if(!user) throw new Error('User not found.')
-            const {error} = addUser({username: user.username,room,id:liveSocket.id})
+            const {error} = addUser({username: user.username,room,id:socket.id})
             if(error) throw new Error(error)
-            liveSocket.emit('login',{error:'',status: 200,user})
-            liveSocket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
+            socket.emit('login',{error:'',status: 200,user})
+            socket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
             
-            liveSocket.join(room)
-            liveSocket.emit('arduino-connection-status', {status: arduinoStatus.status})
-            liveSocket.emit('arduino-data', switchStatus)
-            liveSocket.emit('req-arduino-status','requested')
+            socket.join(room)
+            socket.emit('arduino-connection-status', {status: arduinoStatus.status})
+            socket.emit('arduino-data', switchStatus)
+            socket.emit('req-arduino-status','requested')
             if(user.username==='arduino'){
                 console.log('arduion connected')
                 arduinoStatus.status = true
-                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:true})
+                socket.broadcast.to('123').emit('arduino-connection-status',{status:true})
                 console.log(getAllUsers())
             }
+            liveSocket = socket
 
         } catch (error) {
             console.log(error)
-            return liveSocket.emit('login',{error:error.message,status:400})
+            return socket.emit('login',{error:error.message,status:400})
         }
     })
 
-    liveSocket.on('switch-trigger',({switch_no,status,username})=>{
+    socket.on('switch-trigger',({switch_no,status,username})=>{
         console.log('switch-trigger')
         console.log({switch_no,status,username})
         switchStatus[switch_no-1] = status
-        liveSocket.broadcast.to('123').emit('switch-triggered', ({switch_no,status,username}))
+        socket.broadcast.to('123').emit('switch-triggered', ({switch_no,status,username}))
     })
     
-    liveSocket.on('arduino-status',(status)=>{
+    socket.on('arduino-status',(status)=>{
         Object.entries(status).forEach(([key, value], index) => switchStatus[index] = Boolean(parseInt(value)));
-        liveSocket.broadcast.to('123').emit('arduino-data', switchStatus)
+        socket.broadcast.to('123').emit('arduino-data', switchStatus)
     })
 
-    liveSocket.on('sensor-send',({temp,humidity,co,ch,time})=>{
+    socket.on('sensor-send',({temp,humidity,co,ch,time})=>{
         if(!time) time= new Date();
-        liveSocket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
+        socket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
     })
     
-    liveSocket.on('disconnecting', async(reason) => {
+    socket.on('disconnecting', async(reason) => {
         console.log("A user is disconnecting.")
-        const user = await removeUser({id:liveSocket.id})
+        const user = await removeUser({id:socket.id})
         if(user){
             if (user.username === 'arduino') {
-                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
                 arduinoStatus.status  = false
             }
         }
     })
-    liveSocket.on('disconnect', async(reason) => {
+    socket.on('disconnect', async(reason) => {
         console.log("A user is disconnected.")
-        const user = await removeUser({id:liveSocket.id})
+        const user = await removeUser({id:socket.id})
         if(user){
             if (user.username === 'arduino') {
-                liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
                 arduinoStatus.status  = false
             }
         }
