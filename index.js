@@ -117,7 +117,10 @@ app.post('/voice', (req, res) => {
     }
     try {
         if(process.env.VOICE_KEY!== req.body.key){
-            console.log('invalied key')
+            return res.json({
+                status:'failed',
+                error:'invalid key'
+            })
         }
         console.log(req.query)
         if (liveSocket) {
