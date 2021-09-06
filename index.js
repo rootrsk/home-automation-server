@@ -25,7 +25,7 @@ app.use(cookieParser())
 app.use(bodyParser.urlencoded({
     extended: true
 }))
-let liveSocket = null;
+let liveSocket = null
 app.use((req,res,next)=>{
     res.setHeader('Access-Control-Allow-Origin','*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -48,9 +48,10 @@ app.get('/', (req, res) => {
     res.send({
         status: 200,
         connection: 'Successful',
-        message:'Welcome to rootrsk backend socket',
+        message:'Welcome to rootrsk homeAutomation Bankend Api',
         device: req.useragent.source,
-        
+        developed_by: 'Ravishankar (rootrsk)',
+        front_end:'https://rootrsk-homeautomation.world'
     })
 })
 app.get('/status',(req,res)=>{
@@ -126,7 +127,8 @@ app.post('/voice', (req, res) => {
         if (liveSocket) {
             console.log('liveSocket')
             switchStatus[switch_no-1] = status
-            liveSocket.emit('switch-triggered', ({switch_no,status,username}))
+            liveSocket.in('123').emit('switch-triggered', ({switch_no,status,username}))
+            io.emit('hh','fuck')
         }
         res.json({
             status: 'success',
@@ -145,6 +147,9 @@ io.on('connection', async(socket) => {
     if(!liveSocket){
         return
     }
+    io.on('hh',(x)=>{
+        console.log(x)
+    })
     console.log("New Connection")
     liveSocket.emit('message',{message:'Welcome'})
     liveSocket.on('join',async({username,password,room})=>{
@@ -166,6 +171,7 @@ io.on('connection', async(socket) => {
                 liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:true})
                 console.log(getAllUsers())
             }
+            // liveSocket = socket
 
         } catch (error) {
             console.log(error)
