@@ -92,7 +92,6 @@ app.post('/voice', (req, res) => {
     const cellingFan = ['cellingfan', 'celling fan', 'fan']
     const laptop = ['laptop', 'laptopcharger', 'laptop charger', 'charger']
     const desktop = ['desktop', 'pc', 'desktop charger', 'desktopcharger', 'monitor']
-    console.log(tubeLight.includes('light'))
     console.log(req.query.cmd.toLowerCase())
     if (nightLight.includes(req.query.cmd.toLowerCase().trim())) {
         switch_no = 1
