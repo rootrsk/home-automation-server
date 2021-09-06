@@ -10,13 +10,16 @@ router.get('/',(req,res)=>{
     res.send({
         message: 'success',
         data: {
-            welcome: 'Welcome to Test Api',
+            welcome: 'Welcome to rootrsk homeAutomation backend api',
             // headers :req.useragent,
+            connection: 'Successful',
             device:{
                 browser: req.useragent.browser,
                 os: req.useragent.os,
                 source: req.useragent.source
-            }
+            },
+            developed_by: 'Ravishankar (rootrsk)',
+            front_end: 'https://rootrsk-homeautomation.world'
         }
     })
 })

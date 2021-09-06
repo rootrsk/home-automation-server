@@ -44,16 +44,6 @@ mongoose.connect(process.env.MONGODB_URL,{
 app.use(adminRouter)
 app.use(userRouter)
 
-app.get('/', (req, res) => {
-    res.send({
-        status: 200,
-        connection: 'Successful',
-        message:'Welcome to rootrsk homeAutomation Bankend Api',
-        device: req.useragent.source,
-        developed_by: 'Ravishankar (rootrsk)',
-        front_end:'https://rootrsk-homeautomation.world'
-    })
-})
 app.get('/status',(req,res)=>{
     res.send({
         status:200,
@@ -126,8 +116,7 @@ app.post('/voice', (req, res) => {
         if (liveSocket) {
             console.log('liveSocket')
             switchStatus[switch_no-1] = status
-            liveSocket.in('123').emit('switch-triggered', ({switch_no,status,username}))
-            io.emit('hh','fuck')
+            liveSocket.emit('switch-triggered', ({switch_no,status,username}))
         }
         res.json({
             status: 'success',
@@ -170,7 +159,6 @@ io.on('connection', async(socket) => {
                 liveSocket.broadcast.to('123').emit('arduino-connection-status',{status:true})
                 console.log(getAllUsers())
             }
-            // liveSocket = socket
 
         } catch (error) {
             console.log(error)
