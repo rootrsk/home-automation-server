@@ -131,13 +131,6 @@ app.post('/voice', (req, res) => {
 })
 
 io.on('connection', async(socket) => {
-    // liveSocket = socket
-    // if(!liveSocket){
-    //     return
-    // }
-    io.on('hh',(x)=>{
-        console.log(x)
-    })
     console.log("New Connection")
     socket.emit('message',{message:'Welcome'})
     socket.on('join',async({username,password,room})=>{
@@ -205,3 +198,6 @@ io.on('connection', async(socket) => {
         }
     })
 });
+
+
+module.exports = app;
