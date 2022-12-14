@@ -3,10 +3,6 @@ const User = require('../models/user')
 const router = new express.Router()
 const userAuth = require('../middleware/userAuth')
 const {userErrorHandler} = require('../middleware/error')
-// const Test = require('../models/test')
-// const Answer = require('../models/answer')
-// const Chart = require('../models/chart')
-// const Notification = require('../models/notifications')
 
 router.get('/notifications',async(req,res)=>{
     try {

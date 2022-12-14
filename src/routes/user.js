@@ -1,17 +1,16 @@
+const axios = require('axios')
 const express = require('express')
 const User = require('../models/user')
-const router = new express.Router()
-const axios = require('axios')
 const userAuth = require('../middleware/userAuth')
 const {userErrorHandler} = require('../middleware/error')
-// const Chart = require('../models/chart')
+
+const router = new express.Router()
 
 router.get('/',(req,res)=>{
     res.send({
         message: 'success',
         data: {
             welcome: 'Welcome to rootrsk homeAutomation backend api',
-            // headers :req.useragent,
             connection: 'Successful',
             device:{
                 browser: req.useragent.browser,
@@ -54,11 +53,6 @@ router.post('/signup',async(req,res)=>{
             browser: req.useragent.browser,
             device: req.useragent.os
         })
-        let options = {
-            // maxAge: 1000*60*60, // would expire after 30 seconds
-            httpOnly: false, // The cookie only accessible by the web server
-            signed: false // Indicates if the cookie should be signed
-        }
         res.send({
             message: 'Account created successfully.',
             success:true,
@@ -76,11 +70,9 @@ router.post('/signup',async(req,res)=>{
         })
     }
 })
-
 router.post('/login',async(req,res)=>{
 
     try {
-        console.log(req.headers.authorization)
         const user = await User.findByCredentials(req.body.email,req.body.password)
         const token = user.genAuthToken()
         user.tokens = user.tokens.concat({
@@ -90,7 +82,6 @@ router.post('/login',async(req,res)=>{
         })
         
         let options = {
-            // maxAge: 1000*60*60, // would expire after 30 seconds
             httpOnly: false, // The cookie only accessible by the web server
             signed: false // Indicates if the cookie should be signed
         }
@@ -107,7 +98,6 @@ router.post('/login',async(req,res)=>{
         })
     }
 })
-
 router.post('/user/logout',userAuth,async(req,res)=>{
     try {
         const user = req.user
@@ -123,7 +113,6 @@ router.post('/user/logout',userAuth,async(req,res)=>{
         })
     }
 })
-
 router.get('/user/me',userAuth,async(req,res)=>{
     res.json({
         status: 'success',
@@ -131,7 +120,6 @@ router.get('/user/me',userAuth,async(req,res)=>{
         user:req.user
     })
 })
-
 router.post('/user/dashboard',userAuth,async(req,res)=>{
     try {
         const charts = await Chart.findOne({user_id: req.user._id})
@@ -150,22 +138,6 @@ router.post('/user/dashboard',userAuth,async(req,res)=>{
         res.json({
             status: 'failed',
             error: e.message,
-            message: 'Something went Wrong.'
-        })
-    }
-})
-router.post('/tests',async(req,res)=>{
-    try {
-        const tests =await Test.find({})
-        res.json({
-            status: 'success',
-            message: 'Fetched Successfully',
-            tests
-        })
-    } catch (e) {
-        res.json({
-            status: 'failed',
-            error: e,
             message: 'Something went Wrong.'
         })
     }

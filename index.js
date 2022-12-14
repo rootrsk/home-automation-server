@@ -1,7 +1,21 @@
+require("dotenv").config()
+require("./src/config/db")
+
 const express = require('express')
-const app = require('express')()
-const http = require('http').createServer(app)
+const bodyParser = require('body-parser')
+const useragent = require('express-useragent')
+const cookieParser = require('cookie-parser')
+
 const User = require('./src/models/user')
+const cors = require("./src/config/cors")
+const userRouter = require('./src/routes/user')
+const adminRouter = require('./src/routes/admin')
+const { addUser, removeUser, getAllUsers}  = require('./src/utils/userTracker')
+
+const app = express()
+const http = require('http').createServer(app)
+
+
 const io = require('socket.io')(http,{
     path:'/socket.io/',
     cors: {
@@ -9,37 +23,15 @@ const io = require('socket.io')(http,{
         methods: ["GET", "POST"],
     }
 })
-const mongoose = require('mongoose')
-const bodyParser = require('body-parser')
-const useragent = require('express-useragent')
-const cookieParser = require('cookie-parser')
-require("dotenv").config();
-const PORT = process.env.PORT || 3000
-const userRouter = require('./src/routes/user')
-const adminRouter = require('./src/routes/admin')
-const NotificationRouter = require('./src/routes/notification')
-const { addUser, removeUser, getAllUsers}  = require('./src/utils/userTracker')
+
+let liveSocket = null
+const PORT = process.env.PORT || 3001
+
+app.use(cors)
+app.use(cookieParser())
 app.use(express.json())
 app.use(useragent.express())
-app.use(cookieParser())
-app.use(bodyParser.urlencoded({
-    extended: true
-}))
-let liveSocket = null
-app.use((req,res,next)=>{
-    res.setHeader('Access-Control-Allow-Origin','*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,authorization');
-    res.setHeader('Access-Control-Allow-Credentials', true);
-    next()
-})
-
-mongoose.connect(process.env.MONGODB_URL,{
-    useNewUrlParser: true,
-    useCreateIndex: true,
-    useUnifiedTopology: true,
-    useFindAndModify: false
-}).then(()=>console.log('connected to database')).catch(()=>console.log('Unable to connect to database.'))
+app.use(bodyParser.urlencoded({extended: true}))
 
 app.use(adminRouter)
 app.use(userRouter)
@@ -71,7 +63,9 @@ http.listen(PORT,()=>{
 })
 
 const switchStatus = [false,false,false,false,false,false,false,false]
-const arduinoStatus = {status:false}
+const arduinoStatus = {connected:false}
+
+
 app.post('/voice', (req, res) => {
     console.log(req.body,req.query)
     let switch_no = null
@@ -131,27 +125,35 @@ app.post('/voice', (req, res) => {
 })
 
 io.on('connection', async(socket) => {
+    console.log(socket.handshake.headers['user-agent'])
     console.log("New Connection")
     socket.emit('message',{message:'Welcome'})
-    socket.on('join',async({username,password,room})=>{
+    socket.on('join',async({username,password,room}={})=>{
         try {
+            if(!username || !password || !room){
+                return socket.emit('login',{error:'Please provide all fields',user:null,status:400})
+            }
+            console.log('joining room called',room)
+
             const user = await User.findByCredentials({email:username,username,password})
+            console.log({user})
             if(!user) throw new Error('User not found.')
             const {error} = addUser({username: user.username,room,id:socket.id})
             if(error) throw new Error(error)
+
             socket.emit('login',{error:'',status: 200,user})
             socket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
             
             socket.join(room)
-            socket.emit('arduino-connection-status', {status: arduinoStatus.status})
-            socket.emit('arduino-data', switchStatus)
             socket.emit('req-arduino-status','requested')
-            if(user.username==='arduino'){
-                console.log('arduion connected')
-                arduinoStatus.status = true
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:true})
+            console.log({username,u:user.username})
+            if(user.username.includes('arduino')){
+                console.log('arduino connected')
+                arduinoStatus.connected = true
                 console.log(getAllUsers())
             }
+            
+            syncDebounce(room)
             liveSocket = socket
 
         } catch (error) {
@@ -159,44 +161,63 @@ io.on('connection', async(socket) => {
             return socket.emit('login',{error:error.message,status:400})
         }
     })
-
     socket.on('switch-trigger',({switch_no,status,username})=>{
         console.log('switch-trigger')
         console.log({switch_no,status,username})
         switchStatus[switch_no-1] = status
-        socket.broadcast.to('123').emit('switch-triggered', ({switch_no,status,username}))
+        io.to('123').emit('switch-triggered', ({switch_no,status,username}))
     })
-    
     socket.on('arduino-status',(status)=>{
         Object.entries(status).forEach(([key, value], index) => switchStatus[index] = Boolean(parseInt(value)));
         socket.broadcast.to('123').emit('arduino-data', switchStatus)
     })
-
     socket.on('sensor-send',({temp,humidity,co,ch,time})=>{
         if(!time) time= new Date();
         socket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
     })
-    
     socket.on('disconnecting', async(reason) => {
         console.log("A user is disconnecting.")
         const user = await removeUser({id:socket.id})
         if(user){
-            if (user.username === 'arduino') {
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
-                arduinoStatus.status  = false
+            if (user.username.includes('arduino')) {
+                // socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                arduinoStatus.connected  = false
+                syncDebounce('123')
             }
         }
     })
     socket.on('disconnect', async(reason) => {
         console.log("A user is disconnected.")
         const user = await removeUser({id:socket.id})
+        console.log({user})
         if(user){
-            if (user.username === 'arduino') {
-                socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
-                arduinoStatus.status  = false
+            if (user.username.includes('arduino')) {
+                // socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
+                arduinoStatus.connected  = false
+                syncDebounce('123')
             }
         }
     })
+    socket.on('sync-with-arduino',(data)=>{
+        console.log('arduino-sync-data',data)
+    })
+    socket.on('sensor-send',(data)=>{
+        console.log(data)
+        
+    })
+
+    function debounce(func, timeout = 1000){
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+    }
+    function syncHandler(room){
+        io.in(room).emit('sync', {switchStatus,arduinoStatus})
+    }
+
+    const syncDebounce = debounce((room) => syncHandler(room));
 });
 
 
