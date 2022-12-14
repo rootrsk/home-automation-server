@@ -1,6 +1,7 @@
 require("dotenv").config()
 require("./src/config/db")
 
+const morgan = require('morgan')
 const express = require('express')
 const bodyParser = require('body-parser')
 const useragent = require('express-useragent')
@@ -30,6 +31,7 @@ const PORT = process.env.PORT || 3001
 app.use(cors)
 app.use(cookieParser())
 app.use(express.json())
+app.use(morgan('combined'))
 app.use(useragent.express())
 app.use(bodyParser.urlencoded({extended: true}))
 
