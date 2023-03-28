@@ -27,6 +27,7 @@ const io = require('socket.io')(http,{
 
 let liveSocket = null
 const PORT = process.env.PORT || 3001
+// const PORT = 808944
 
 app.use(cors)
 app.use(cookieParser())
@@ -45,7 +46,7 @@ app.get('/status',(req,res)=>{
         device: req.useragent.source
     })
 })
-app.get('/voice',(req,res)=>{
+app.get('/api/voice',(req,res)=>{
     try {
         console.log(req.query)
         console.log(req.body)
@@ -141,7 +142,7 @@ io.on('connection', async(socket) => {
             console.log({user})
             if(!user) throw new Error('User not found.')
             const {error} = addUser({username: user.username,room,id:socket.id})
-            if(error) throw new Error(error)
+            // if(error) throw new Error(error)
 
             socket.emit('login',{error:'',status: 200,user})
             socket.broadcast.to(room).emit('new_connection',{user,message:'new user has joined the room.'})
@@ -180,6 +181,7 @@ io.on('connection', async(socket) => {
     socket.on('disconnecting', async(reason) => {
         console.log("A user is disconnecting.")
         const user = await removeUser({id:socket.id})
+        console.log(user)
         if(user){
             if (user.username.includes('arduino')) {
                 // socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
@@ -194,6 +196,7 @@ io.on('connection', async(socket) => {
         console.log({user})
         if(user){
             if (user.username.includes('arduino')) {
+              console.log("user removed")
                 // socket.broadcast.to('123').emit('arduino-connection-status',{status:false})
                 arduinoStatus.connected  = false
                 syncDebounce('123')
