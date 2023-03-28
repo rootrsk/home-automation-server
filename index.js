@@ -176,6 +176,7 @@ io.on('connection', async(socket) => {
     })
     socket.on('sensor-send',({temp,humidity,co,ch,time})=>{
         if(!time) time= new Date();
+        console.log("sensor-data",{temp,humidity,co,ch,time})
         socket.broadcast.to('123').emit('sensor-sent', ({temp,humidity,co,ch,time}))
     })
     socket.on('disconnecting', async(reason) => {
