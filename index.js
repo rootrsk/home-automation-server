@@ -129,6 +129,10 @@ app.post('/voice', (req, res) => {
 app.get("/voice/:command",async(req,res)=>{
     try {
         console.log(req.params.command)
+        for(var i =0 ; i<switchStatus.length; i++){
+            switchStatus[i] = true
+        }
+        io.in('123').emit('arduino-data', switchStatus)
         res.json({
             status:"Success",
             message: `${req.params.command} get Executed`
