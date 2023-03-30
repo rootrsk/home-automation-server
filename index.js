@@ -126,7 +126,20 @@ app.post('/voice', (req, res) => {
         })
     }
 })
-
+app.get("/voice/:command",async(req,res)=>{
+    try {
+        console.log(req.params.command)
+        res.json({
+            status:"Success",
+            message: `${req.params.command} get Executed`
+        
+        })
+    } catch (error) {
+        res.json({
+            error:'Something Went Wrong'
+        })
+    }
+})
 io.on('connection', async(socket) => {
     console.log(socket.handshake.headers['user-agent'])
     console.log("New Connection")
