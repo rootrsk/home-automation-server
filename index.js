@@ -131,8 +131,12 @@ app.get("/voice/:command",async(req,res)=>{
         console.log(req.params.command)
         for(var i =0 ; i<switchStatus.length; i++){
             switchStatus[i] = true
+            setTimeout(() => {
+                
+            }, i * 1000);
         }
         io.in('123').emit('arduino-data', switchStatus)
+
         res.json({
             status:"Success",
             message: `${req.params.command} get Executed`
